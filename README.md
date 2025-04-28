@@ -27,15 +27,22 @@ The pipeline consists of the following sequential steps:
 
 ## Docker Environment Setup
 
-### Building the Docker Image
+### Setting Up SuGaR and Required Files
 
-1. Clone the repository and navigate to the project directory:
+1. Clone the SuGaR repository and navigate to the project directory:
    ```bash
    git clone https://github.com/Anttwo/SuGaR.git
    cd SuGaR
    ```
 
-2. Build the Docker image using the provided Dockerfile:
+2. Place the provided `Dockerfile` and `environment.yml` files into the cloned SuGaR directory:
+   ```bash
+   # Copy the provided Dockerfile and environment.yml to the SuGaR directory
+   cp /path/to/provided/Dockerfile /path/to/SuGaR/
+   cp /path/to/provided/environment.yml /path/to/SuGaR/
+   ```
+
+3. Build the Docker image using the provided Dockerfile:
    ```bash
    sudo docker build -t sugar .
    ```
