@@ -42,7 +42,7 @@ The Gaussian Splatting conversion script is expected at:
 To run the entire pipeline for a specific user:
 
 ```bash
-./run_pipeline.sh USER_ID
+bash run_pipeline.sh USER_ID
 ```
 
 This will execute all steps in sequence, using a state file to track progress.
