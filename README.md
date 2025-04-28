@@ -20,8 +20,57 @@ The pipeline consists of the following sequential steps:
 
 - Python 3.x
 - Docker
+- NVIDIA GPU with compatible drivers
+- NVIDIA Container Toolkit (nvidia-docker2)
 - Firebase Admin SDK
 - Service account credentials for Firebase
+
+## Docker Environment Setup
+
+### Building the Docker Image
+
+1. Clone the repository and navigate to the project directory:
+   ```bash
+   git clone https://github.com/Anttwo/SuGaR.git
+   cd SuGaR
+   ```
+
+2. Build the Docker image using the provided Dockerfile:
+   ```bash
+   sudo docker build -t sugar .
+   ```
+   This process may take some time as it installs all the necessary dependencies and compiles the CUDA extensions.
+
+### Running the Docker Container
+
+To run the Docker container with GPU support and X11 forwarding:
+
+```bash
+sudo docker run -it --gpus all --env="DISPLAY" --env="QT_X11_NO_MITSHM=1" \
+  -v /tmp/.X11-unix:/tmp/.X11-unix \
+  -v /local/path/to/dataset:/app/data \
+  sugar
+```
+
+Replace `/local/path/to/dataset` with the actual path to your dataset on the host machine. This will be mounted to `/app/data` inside the container.
+
+### Running the Training
+
+Once inside the container, execute the training using the provided script:
+
+```bash
+/app/run_with_xvfb.sh python train_full_pipeline.py \
+  -s /app/path/to/dataset/on/docker \
+  -r dn_consistency \
+  --refinement_time short \
+  --export_obj True
+```
+
+Parameters:
+- `-s`: Path to the dataset inside the Docker container
+- `-r`: Refinement method (here using "dn_consistency")
+- `--refinement_time`: Duration of refinement (options: short, medium, long)
+- `--export_obj`: Whether to export the model as OBJ files
 
 ## Configuration
 
@@ -80,6 +129,17 @@ python run_training.py --user-id USER_ID --container CONTAINER_NAME --container-
 ```bash
 python upload_results.py --user-id USER_ID --container CONTAINER_NAME --service-account SERVICE_ACCOUNT_PATH --state-file STATE_FILE
 ```
+
+## Troubleshooting
+
+### NVIDIA GPU Issues
+- Ensure NVIDIA drivers are properly installed: `nvidia-smi`
+- Check that NVIDIA Container Toolkit is installed: `dpkg -l | grep nvidia-container-toolkit`
+- Verify that Docker can access GPUs: `sudo docker run --gpus all nvidia/cuda:11.8.0-base-ubuntu20.04 nvidia-smi`
+
+### X11 Forwarding Issues
+- If you encounter display issues, ensure that X11 is properly configured with: `xhost +local:docker`
+- For headless servers, ensure the Xvfb script is working: `/app/run_with_xvfb.sh echo "Display test"`
 
 ## State Management
 
