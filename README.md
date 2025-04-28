@@ -76,7 +76,7 @@ Parameters:
 
 The service account key file should be placed at:
 ```
-/Root_Dir/Service/gauss-mobile-firebase-adminsdk-fbsvc-56f4460390.json
+/Root_Dir/Service/service_account_key.json
 ```
 
 The Gaussian Splatting conversion script is expected at:
