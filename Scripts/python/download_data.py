@@ -11,6 +11,14 @@ from firebase_admin import credentials
 from firebase_admin import firestore
 import shutil
 
+# Import our path utilities
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from python.path_utils import (
+    get_user_data_dir, get_user_state_file, 
+    create_user_temp_dir, ensure_dir_exists,
+    get_service_account_path
+)
+
 # ANSI color codes for terminal output
 class Colors:
     BLUE = '\033[94m'
@@ -118,10 +126,8 @@ def main():
     parser.add_argument('--project-id', default='gauss-mobile', help='Firebase project ID')
     parser.add_argument('--collection', default='Gauss', help='Firestore collection name')
     parser.add_argument('--user-id', required=True, help='Firebase user ID to download data for')
-    parser.add_argument('--service-account', default='gauss-mobile-firebase-adminsdk-fbsvc-56f4460390.json', 
-                      help='Path to service account key JSON file')
-    parser.add_argument('--output-path', default='/home/h702839428/Desktop/Full_Project/FIRE/dedicated_SENDTO', 
-                      help='Local download path')
+    parser.add_argument('--service-account', help='Path to service account key JSON file')
+    parser.add_argument('--output-path', help='Local download path (will use temp if not specified)')
     
     args = parser.parse_args()
     
@@ -130,21 +136,30 @@ def main():
         print_colored("Error: User ID is required", Colors.RED)
         sys.exit(1)
     
-    # Validate service account file
-    if not os.path.isfile(args.service_account):
-        print_colored(f"Error: Service account file not found at {args.service_account}", Colors.RED)
-        sys.exit(1)
+    # Get paths using our utility functions
+    service_account = args.service_account or get_service_account_path()
     
-    # Set up local download path - include user ID in the path
-    download_path = os.path.join(args.output_path, args.user_id, 'data')
-    Path(download_path).mkdir(parents=True, exist_ok=True)
+    # Create a temporary directory for this user's data if not specified
+    if args.output_path:
+        download_path = args.output_path
+    else:
+        # Create a temp directory for the download
+        user_dir = get_user_data_dir(args.user_id)
+        ensure_dir_exists(user_dir)
+        download_path = os.path.join(user_dir, "data")
+        ensure_dir_exists(download_path)
+    
+    # Validate service account file
+    if not os.path.isfile(service_account):
+        print_colored(f"Error: Service account file not found at {service_account}", Colors.RED)
+        sys.exit(1)
     
     print_colored(f"======= Step 1: Downloading Data from Firestore =======", Colors.BLUE)
     print_colored(f"User ID: {args.user_id}", Colors.YELLOW)
     
     # Initialize Firebase Admin with service account
     try:
-        cred = credentials.Certificate(args.service_account)
+        cred = credentials.Certificate(service_account)
         firebase_admin.initialize_app(cred, {
             'projectId': args.project_id,
             'storageBucket': f"{args.project_id}.appspot.com"
@@ -161,7 +176,7 @@ def main():
         print_colored("Download completed successfully!", Colors.GREEN)
         
         # Save pipeline state for next step
-        state_file = os.path.join(args.output_path, args.user_id, "pipeline_state.json")
+        state_file = get_user_state_file(args.user_id)
         with open(state_file, 'w') as f:
             json.dump({
                 'user_id': args.user_id,

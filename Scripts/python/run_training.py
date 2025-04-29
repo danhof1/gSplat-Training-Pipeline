@@ -8,6 +8,12 @@ import argparse
 import subprocess
 from pathlib import Path
 
+# Import our path utilities
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from python.path_utils import (
+    get_user_data_dir, get_user_state_file
+)
+
 # ANSI color codes for terminal output
 class Colors:
     BLUE = '\033[94m'
@@ -125,29 +131,33 @@ def main():
         user_id = args.user_id or state.get('user_id')
         container_name = args.container or state.get('container_name')
         container_path = args.container_path or state.get('container_path')
-        base_path = os.path.dirname(os.path.dirname(args.state_file)) if args.state_file else None
+        state_file = args.state_file
     else:
         # If we don't have a state file, we need explicit arguments
-        if not args.user_id or not args.container or not args.container_path:
-            print_colored("Error: user-id, container, and container-path are required if no state file is provided", Colors.RED)
+        if not args.user_id:
+            print_colored("Error: user-id is required if no state file is provided", Colors.RED)
             sys.exit(1)
         
         user_id = args.user_id
-        container_name = args.container
-        container_path = args.container_path
-        base_path = os.path.dirname(os.path.dirname(state.get('download_path'))) if state.get('download_path') else None
+        state_file = get_user_state_file(user_id)
         
-        state = {
-            'user_id': user_id,
-            'container_name': container_name,
-            'container_path': container_path
-        }
-    
-    # Create state file path if not provided
-    if not args.state_file and base_path:
-        state_file = os.path.join(base_path, "pipeline_state.json")
-    else:
-        state_file = args.state_file
+        # Load state file if it exists
+        if os.path.exists(state_file):
+            with open(state_file, 'r') as f:
+                state = json.load(f)
+            container_name = args.container or state.get('container_name')
+            container_path = args.container_path or state.get('container_path')
+        else:
+            if not args.container or not args.container_path:
+                print_colored("Error: container and container-path are required if no state file exists", Colors.RED)
+                sys.exit(1)
+            container_name = args.container
+            container_path = args.container_path
+            state = {
+                'user_id': user_id,
+                'container_name': container_name,
+                'container_path': container_path
+            }
     
     print_colored(f"======= Step 4: Running Training =======", Colors.BLUE)
     print_colored(f"User ID: {user_id}", Colors.YELLOW)
@@ -159,7 +169,7 @@ def main():
         print_colored("Training completed successfully!", Colors.GREEN)
         
         # Update output paths based on known directory structure
-        # These paths are based on the common output locations from the training script
+        # These paths use the user_id to ensure separation between users
         output_paths = {
             'vanilla_gs_dir': f"/app/output/vanilla_gs/{user_id}",
             'refined_ply_dir': f"/app/output/refined_ply/{user_id}",

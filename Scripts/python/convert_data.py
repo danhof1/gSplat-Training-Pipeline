@@ -8,6 +8,14 @@ import argparse
 from pathlib import Path
 import subprocess
 
+# Import our path utilities
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from python.path_utils import (
+    get_user_data_dir, get_user_state_file, 
+    create_user_temp_dir, ensure_dir_exists,
+    get_convert_script_path
+)
+
 # ANSI color codes for terminal output
 class Colors:
     BLUE = '\033[94m'
@@ -62,8 +70,7 @@ def main():
     parser = argparse.ArgumentParser(description='Step 2: Convert downloaded data')
     parser.add_argument('--user-id', help='Firebase user ID')
     parser.add_argument('--input-path', help='Path to downloaded data')
-    parser.add_argument('--convert-script-path', default='/home/h702839428/Desktop/Full_Project/FIRE/Scripts/python',
-                      help='Path to the directory containing convert.py')
+    parser.add_argument('--convert-script-path', help='Path to the directory containing convert.py')
     parser.add_argument('--state-file', help='Path to pipeline state file')
     
     args = parser.parse_args()
@@ -76,28 +83,33 @@ def main():
         # Use state values if arguments aren't provided
         user_id = args.user_id or state.get('user_id')
         input_path = args.input_path or state.get('download_path')
-        base_path = os.path.dirname(os.path.dirname(args.state_file)) if args.state_file else None
+        state_file = args.state_file
     else:
         # If we don't have a state file, we need explicit arguments
-        if not args.user_id or not args.input_path:
-            print_colored("Error: user-id and input-path are required if no state file is provided", Colors.RED)
+        if not args.user_id:
+            print_colored("Error: user-id is required if no state file is provided", Colors.RED)
             sys.exit(1)
         
         user_id = args.user_id
-        input_path = args.input_path
-        base_path = os.path.dirname(os.path.dirname(input_path))
+        state_file = get_user_state_file(user_id)
         
-        # Create a state file for future steps
-        state = {
-            'user_id': user_id,
-            'download_path': input_path
-        }
+        # Load state file if it exists
+        if os.path.exists(state_file):
+            with open(state_file, 'r') as f:
+                state = json.load(f)
+            input_path = args.input_path or state.get('download_path')
+        else:
+            if not args.input_path:
+                print_colored("Error: input-path is required if no state file exists", Colors.RED)
+                sys.exit(1)
+            input_path = args.input_path
+            state = {
+                'user_id': user_id,
+                'download_path': input_path
+            }
     
-    # Create state file path if not provided
-    if not args.state_file and base_path:
-        state_file = os.path.join(base_path, "pipeline_state.json")
-    else:
-        state_file = args.state_file
+    # Get conversion script path
+    convert_script_path = args.convert_script_path or get_convert_script_path()
     
     print_colored(f"======= Step 2: Converting Data =======", Colors.BLUE)
     print_colored(f"User ID: {user_id}", Colors.YELLOW)
@@ -109,20 +121,20 @@ def main():
         sys.exit(1)
     
     # Check if conversion script exists
-    convert_script = os.path.join(args.convert_script_path, "convert.py")
+    convert_script = os.path.join(convert_script_path, "convert.py")
     if not os.path.isfile(convert_script):
         print_colored(f"Error: Conversion script not found at {convert_script}", Colors.RED)
         sys.exit(1)
     
     # Run the conversion script
-    if run_convert_script(input_path, args.convert_script_path):
+    if run_convert_script(input_path, convert_script_path):
         print_colored("Conversion completed successfully!", Colors.GREEN)
         
         # Update pipeline state for next step
         state.update({
             'user_id': user_id,
             'download_path': input_path,
-            'convert_script_path': args.convert_script_path,
+            'convert_script_path': convert_script_path,
             'step2_completed': True
         })
         
