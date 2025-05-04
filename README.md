@@ -72,15 +72,22 @@ Replace `/local/path/to/dataset` with the actual path to your dataset on the hos
 
 ### Configuration
 
+#### Environment Variables
+You can set these environment variables to override default paths:
+```bash
+export FIREBASE_SERVICE_ACCOUNT_PATH="/path/to/service-account.json"
+export FIREBASE_BUCKET_NAME="your-bucket-name"
+```
+
 #### Firebase Configuration
 
 The service account key file should be placed at standard locations checked by `path_utils.py`:
-- `/home/h702839428/Desktop/Full_Project/FIRE/Service/`
-- `/Root_Dir/Service/`
+- `/path/to/project/FIRE/Service/`
+- `{PROJECT_ROOT}/Service/`
 - Auto-detected based on script location
 
 The project uses:
-- **Firebase Storage**: For user data and results (`gauss-mobile.firebasestorage.app`)
+- **Firebase Storage**: For user data and results (`{PROJECT_ID}.firebasestorage.app`)
 - **Firestore Collections**:
   - `users/{userId}/Gauss/input/contents/` - Uploaded images
   - `plyFiles` - References to generated 3D models
@@ -89,7 +96,7 @@ The project uses:
 #### Default Paths
 
 The Gaussian Splatting conversion script is expected at:
-- `/home/h702839428/Desktop/Full_Project/Gauss_Project/gaussian-splatting/`
+- `{PROJECT_ROOT}/gaussian-splatting/`
 - Auto-detected relative to project structure
 
 ### Usage
@@ -111,6 +118,13 @@ Start the Firebase listener to automatically process new uploads:
 ```bash
 python firebase_listener.py
 ```
+
+Configuration:
+- SERVICE_ACCOUNT_PATH: Path to Firebase service account JSON
+- POLL_INTERVAL: Polling interval in seconds (default: 20)
+- PROCESSED_DOCS_PATH: File to track processed documents (default: `/tmp/processed_doc_ids.txt`)
+- COLLECTION_PATH: Firestore collection to monitor (default: "Summary")
+- RUN_PIPELINE_SCRIPT: Path to pipeline script
 
 This script:
 - Monitors the `Summary` collection for new entries
@@ -221,7 +235,8 @@ xhost +local:docker
 ```
 
 #### Pipeline State Issues
-- State files are stored at: `/tmp/gs_pipeline_data/user_{userId}/pipeline_state.json`
+- State files are stored at: `{PIPELINE_DATA_DIR}/user_{userId}/pipeline_state.json`
+  - Default: `/tmp/gs_pipeline_data/user_{userId}/pipeline_state.json`
 - Automatic cleanup on completion: Delete user directory to force fresh start
 - Manual cleanup: Use `cleanup_pipeline_dirs(user_id)` function
 
@@ -233,6 +248,10 @@ The `path_utils.py` module handles:
 - User-specific directory management
 - Temporary directory cleanup
 - State file tracking
+- Automatic detection of:
+  - Project root directory
+  - Service account path
+  - Conversion script path
 
 #### State Management
 The pipeline state includes:
