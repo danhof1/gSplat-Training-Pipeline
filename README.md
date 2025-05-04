@@ -1,22 +1,23 @@
 # gSplat-Training-Pipeline
+## Gaussian Splatting Processing Pipeline
 
-# Gaussian Splatting Processing Pipeline
+### Overview
 
-## Overview
+This project provides an automated pipeline for processing 3D model data using Gaussian Splatting technology with SuGaR (Surface-Aligned Gaussian Splatting for Efficient 3D Mesh Reconstruction and High-Quality Mesh Extraction). The pipeline handles downloading data from Firebase, converting it to the appropriate format, processing it using a Docker container with the Gaussian Splatting algorithm, and uploading the results back to Firebase.
 
-This project provides an automated pipeline for processing 3D model data using Gaussian Splatting technology. The pipeline handles downloading data from Firebase, converting it to the appropriate format, processing it using a Docker container with the Gaussian Splatting algorithm, and uploading the results back to Firebase.
+The pipeline supports a mobile application built with Flutter that allows users to upload images, which are then processed through the pipeline to generate 3D models.
 
-## Pipeline Steps
+### Pipeline Steps
 
 The pipeline consists of the following sequential steps:
 
-1. **Download Data**: Fetches user data from Firebase Firestore
-2. **Convert Data**: Transforms the downloaded data into a format suitable for Gaussian Splatting
+1. **Download Data**: Fetches user data from Firebase Firestore and Storage
+2. **Convert Data**: Transforms the downloaded data into a format suitable for Gaussian Splatting using the `convert.py` script
 3. **Copy to Docker**: Transfers the converted data to a running Docker container
-4. **Run Training**: Executes the Gaussian Splatting algorithm on the data
-5. **Upload Results**: Sends the generated 3D models back to Firebase for user access
+4. **Run Training**: Executes the SuGaR algorithm on the data
+5. **Upload Results**: Sends the generated 3D models (.ply and .obj files) back to Firebase for user access
 
-## Requirements
+### Requirements
 
 - Python 3.x
 - Docker
@@ -24,10 +25,18 @@ The pipeline consists of the following sequential steps:
 - NVIDIA Container Toolkit (nvidia-docker2)
 - Firebase Admin SDK
 - Service account credentials for Firebase
+- Conda environment (for SuGaR pipeline)
 
-## Docker Environment Setup
+### Architecture
 
-### Setting Up SuGaR and Required Files
+The pipeline uses a stateful design with JSON state files to track progress between steps:
+- **Persistent Pipeline Directory**: `/tmp/gs_pipeline_data` stores user-specific pipeline data
+- **State Management**: Each user has a `pipeline_state.json` file tracking pipeline progress
+- **Automatic Cleanup**: Temporary directories are automatically cleaned up after pipeline completion
+
+### Docker Environment Setup
+
+#### Setting Up SuGaR and Required Files
 
 1. Clone the SuGaR repository and navigate to the project directory:
    ```bash
@@ -35,7 +44,7 @@ The pipeline consists of the following sequential steps:
    cd SuGaR
    ```
 
-2. Place the provided `Dockerfile` and `environment.yml` files into the cloned SuGaR directory:
+2. Place the provided Dockerfile and environment.yml files into the cloned SuGaR directory:
    ```bash
    # Copy the provided Dockerfile and environment.yml to the SuGaR directory
    cp /path/to/provided/Dockerfile /path/to/SuGaR/
@@ -46,9 +55,9 @@ The pipeline consists of the following sequential steps:
    ```bash
    sudo docker build -t sugar .
    ```
-   This process may take some time as it installs all the necessary dependencies and compiles the CUDA extensions.
+   *This process may take some time as it installs all the necessary dependencies and compiles the CUDA extensions.*
 
-### Running the Docker Container
+#### Running the Docker Container
 
 To run the Docker container with GPU support and X11 forwarding:
 
@@ -61,132 +70,212 @@ sudo docker run -it --gpus all --env="DISPLAY" --env="QT_X11_NO_MITSHM=1" \
 
 Replace `/local/path/to/dataset` with the actual path to your dataset on the host machine. This will be mounted to `/app/data` inside the container.
 
-### Running the Training
+### Configuration
 
-Once inside the container, execute the training using the provided script:
+#### Firebase Configuration
 
+The service account key file should be placed at standard locations checked by `path_utils.py`:
+- `/home/h702839428/Desktop/Full_Project/FIRE/Service/`
+- `/Root_Dir/Service/`
+- Auto-detected based on script location
+
+The project uses:
+- **Firebase Storage**: For user data and results (`gauss-mobile.firebasestorage.app`)
+- **Firestore Collections**:
+  - `users/{userId}/Gauss/input/contents/` - Uploaded images
+  - `plyFiles` - References to generated 3D models
+  - `Summary` - Processing status tracking
+
+#### Default Paths
+
+The Gaussian Splatting conversion script is expected at:
+- `/home/h702839428/Desktop/Full_Project/Gauss_Project/gaussian-splatting/`
+- Auto-detected relative to project structure
+
+### Usage
+
+#### Quick Start: Run Complete Pipeline
+
+To run the entire pipeline for a specific user:
 ```bash
-/app/run_with_xvfb.sh python train_full_pipeline.py \
-  -s /app/path/to/dataset/on/docker \
+bash run_pipeline.sh USER_ID [CONTAINER_NAME]
+```
+
+The container name is optional. If not specified, the script will:
+- Auto-detect running Docker containers
+- Prompt for selection if multiple containers are running
+
+#### Firebase Listener (Automatic Processing)
+
+Start the Firebase listener to automatically process new uploads:
+```bash
+python firebase_listener.py
+```
+
+This script:
+- Monitors the `Summary` collection for new entries
+- Triggers the pipeline when new data is detected
+- Tracks processed documents to avoid duplicates
+
+#### Running Individual Steps
+
+Each step can be run independently:
+
+##### Step 1: Download Data
+```bash
+python download_data.py --user-id USER_ID \
+  [--output-dir OUTPUT_DIR] \
+  [--service-account SERVICE_ACCOUNT_PATH] \
+  [--bucket-name BUCKET_NAME]
+```
+
+This step also prunes Firebase data after download.
+
+##### Step 2: Convert Data
+```bash
+python convert_data.py --user-id USER_ID \
+  [--input-path INPUT_PATH] \
+  [--convert-script-path CONVERT_SCRIPT_DIR] \
+  [--state-file STATE_FILE]
+```
+
+##### Step 3: Copy to Docker
+```bash
+python copy_to_docker.py --user-id USER_ID \
+  [--input-path INPUT_PATH] \
+  [--container CONTAINER_NAME] \
+  [--container-path CONTAINER_PATH] \
+  [--state-file STATE_FILE]
+```
+
+This step creates user-specific directories in the container to prevent conflicts.
+
+##### Step 4: Run Training
+```bash
+python run_training.py --user-id USER_ID \
+  [--container CONTAINER_NAME] \
+  [--container-path CONTAINER_PATH] \
+  [--env-name CONDA_ENV] \
+  [--state-file STATE_FILE]
+```
+
+The training runs with these parameters:
+```bash
+python train_full_pipeline.py -s {container_path} \
   -r dn_consistency \
-  --refinement_time short \
+  --high_poly True \
   --export_obj True
 ```
 
-Parameters:
-- `-s`: Path to the dataset inside the Docker container
-- `-r`: Refinement method (here using "dn_consistency")
-- `--refinement_time`: Duration of refinement (options: short, medium, long)
-- `--export_obj`: Whether to export the model as OBJ files
-
-## Configuration
-
-The service account key file should be placed at:
-```
-/Root_Dir/Service/service_account_key.json
-```
-
-The Gaussian Splatting conversion script is expected at:
-```
-/Root_Dir/gaussian-splatting/convert.py
-```
-
-## Usage
-
-### Running the Complete Pipeline
-
-To run the entire pipeline for a specific user:
-
+##### Step 5: Upload Results
 ```bash
-bash run_pipeline.sh USER_ID
+python upload_results.py --user-id USER_ID \
+  [--container CONTAINER_NAME] \
+  [--service-account SERVICE_ACCOUNT_PATH] \
+  [--state-file STATE_FILE] \
+  [--project-id PROJECT_ID] \
+  [--skip-storage]
 ```
 
-This will execute all steps in sequence, using a state file to track progress.
+### Mobile Application Integration
 
-### Running Individual Steps
+The Flutter mobile app (`importpic_page.dart`) provides:
+- Image selection using device gallery
+- Upload to Firebase Storage path: `users/{userId}/Gauss/input/`
+- Automatic summary document creation to trigger pipeline processing
 
-Each step can also be run independently:
+### Output Structure
 
-#### Step 1: Download Data
+The pipeline generates 3D models in the following locations:
+- **Vanilla GS Directory**: `/app/output/vanilla_gs/{userId}`
+- **Refined PLY Directory**: `/app/output/refined_ply/{userId}`
+- **Refined Mesh Directory**: `/app/output/refined_mesh/{userId}`
 
+Output formats:
+- `.ply` files (raw point cloud data)
+- `.obj` files (3D mesh with textures)
+- `.mtl` files (material definitions)
+- Texture images (.png, .jpg, .jpeg, .bmp)
+
+### Error Handling & Troubleshooting
+
+#### NVIDIA GPU Issues
 ```bash
-python download_data.py --user-id USER_ID --output-path OUTPUT_DIR --service-account SERVICE_ACCOUNT_PATH
+# Check NVIDIA drivers
+nvidia-smi
+
+# Check NVIDIA Container Toolkit
+dpkg -l | grep nvidia-container-toolkit
+
+# Verify Docker GPU access
+sudo docker run --gpus all nvidia/cuda:11.8.0-base-ubuntu20.04 nvidia-smi
 ```
 
-#### Step 2: Convert Data
-
+#### X11 Forwarding Issues
 ```bash
-python convert_data.py --user-id USER_ID --input-path INPUT_DIR --convert-script-path CONVERT_SCRIPT_DIR --state-file STATE_FILE
+# For local development
+xhost +local:docker
+
+# For headless servers (uses Xvfb)
+/app/run_with_xvfb.sh echo "Display test"
 ```
 
-#### Step 3: Copy to Docker
+#### Pipeline State Issues
+- State files are stored at: `/tmp/gs_pipeline_data/user_{userId}/pipeline_state.json`
+- Automatic cleanup on completion: Delete user directory to force fresh start
+- Manual cleanup: Use `cleanup_pipeline_dirs(user_id)` function
 
-```bash
-python copy_to_docker.py --user-id USER_ID --input-path INPUT_DIR --container CONTAINER_NAME --container-path CONTAINER_PATH --state-file STATE_FILE
+### Advanced Configuration
+
+#### Path Utilities
+The `path_utils.py` module handles:
+- Automatic path detection based on project structure
+- User-specific directory management
+- Temporary directory cleanup
+- State file tracking
+
+#### State Management
+The pipeline state includes:
+```json
+{
+  "user_id": "...",
+  "download_complete": true,
+  "download_path": "...",
+  "convert_script_path": "...",
+  "container_name": "...",
+  "container_path": "...",
+  "output_paths": {...},
+  "step1_completed": true,
+  "step2_completed": true,
+  "step3_completed": true,
+  "step4_completed": true,
+  "step5_completed": true,
+  "pipeline_completed": true
+}
 ```
 
-#### Step 4: Run Training
+### Best Practices
 
-```bash
-python run_training.py --user-id USER_ID --container CONTAINER_NAME --container-path CONTAINER_PATH --env-name CONDA_ENV --state-file STATE_FILE
-```
+1. **For Production**: Use the Firebase listener for automatic processing
+2. **For Development**: Run individual steps manually for debugging
+3. **Resource Management**: The pipeline automatically manages temporary files
+4. **Error Recovery**: Use state files to resume from failed steps
 
-#### Step 5: Upload Results
+### Contributing
 
-```bash
-python upload_results.py --user-id USER_ID --container CONTAINER_NAME --service-account SERVICE_ACCOUNT_PATH --state-file STATE_FILE
-```
+To extend the pipeline:
+1. Follow the existing modular structure
+2. Update state management in `path_utils.py`
+3. Maintain colored terminal output for clarity
+4. Add appropriate error handling
 
-## Troubleshooting
+### License
 
-### NVIDIA GPU Issues
-- Ensure NVIDIA drivers are properly installed: `nvidia-smi`
-- Check that NVIDIA Container Toolkit is installed: `dpkg -l | grep nvidia-container-toolkit`
-- Verify that Docker can access GPUs: `sudo docker run --gpus all nvidia/cuda:11.8.0-base-ubuntu20.04 nvidia-smi`
+[Add your license information here]
 
-### X11 Forwarding Issues
-- If you encounter display issues, ensure that X11 is properly configured with: `xhost +local:docker`
-- For headless servers, ensure the Xvfb script is working: `/app/run_with_xvfb.sh echo "Display test"`
+### Acknowledgments
 
-## State Management
-
-The pipeline maintains state between steps using a JSON file, created at:
-```
-/home/h702839428/Desktop/Full_Project/FIRE/dedicated_SENDTO/USER_ID/pipeline_state.json
-```
-
-This allows the pipeline to be restarted from any point if a step fails.
-
-## Output
-
-The pipeline generates 3D models in the following formats:
-- PLY files (raw point cloud data)
-- OBJ files (3D mesh with textures)
-
-These files are uploaded to Firebase Storage and linked in Firestore for user access through the application.
-
-## File Structure
-
-- `run_pipeline.sh`: Main script to run the entire pipeline
-- `download_data.py`: Script for downloading user data from Firebase
-- `convert_data.py`: Script for converting data to the proper format
-- `copy_to_docker.py`: Script for transferring data to the Docker container
-- `run_training.py`: Script for running the Gaussian Splatting algorithm
-- `upload_results.py`: Script for uploading results to Firebase
-
-## Conda Environment
-
-The training process uses a conda environment within the Docker container. By default, it searches for environments named "gaussian" or "sugar".
-
-## Firebase Integration
-
-The pipeline integrates with Firebase in the following ways:
-- Downloads user data from Firestore collections
-- Uploads processed 3D models to Firebase Storage
-- Creates references in Firestore collections:
-  - `plyFiles`: Contains references to uploaded model files
-  - `users/{userID}/modelProcessing`: Contains processing status information
-
-## Error Handling
-
-Each step includes error handling and colorized terminal output for clear status indication. If any step fails, the pipeline will abort with an appropriate error message.
+This pipeline uses:
+- SuGaR (Surface-Aligned Gaussian Splatting) for 3D reconstruction
+- Firebase for cloud storage and state management
+- Docker for containerized processing
