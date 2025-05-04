@@ -288,10 +288,6 @@ To extend the pipeline:
 3. Maintain colored terminal output for clarity
 4. Add appropriate error handling
 
-### License
-
-[Add your license information here]
-
 ### Acknowledgments
 
 This pipeline uses:
