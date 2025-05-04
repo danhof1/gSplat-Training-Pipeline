@@ -163,7 +163,23 @@ def upload_results_to_firebase(container_name, output_paths, user_id, service_ac
             file_name = file_path.name
             model_name = file_path.stem
             file_size = os.path.getsize(file_path)
-            storage_path = f"users/{user_id}/models/{model_name}/{file_name}"
+            
+            # Generate a unique document ID for this model
+            model_doc_ref = db.collection('users').document(user_id).collection('models').document()
+            model_id = model_doc_ref.id
+            
+            # Use the same structure as the website upload
+            storage_path = f"users/{user_id}/models/{model_id}/{file_name}"
+
+            # Set appropriate content type based on file extension
+            content_type = 'application/octet-stream'  # Default
+            if file_path.suffix.lower() == '.ply':
+                content_type = 'application/octet-stream'
+            elif file_path.suffix.lower() == '.obj':
+                content_type = 'model/obj'
+            elif file_path.suffix.lower() == '.mtl':
+                content_type = 'text/plain'
+            # Add more content types as needed
 
             # First try to upload to Storage if bucket exists
             public_url = None
@@ -171,6 +187,13 @@ def upload_results_to_firebase(container_name, output_paths, user_id, service_ac
                 try:
                     print_colored(f"Uploading file {file_name} to Firebase Storage at {storage_path}...", Colors.YELLOW)
                     blob = bucket.blob(storage_path)
+                    blob.content_type = content_type
+                    metadata = {
+                        'contentType': content_type,
+                        'firebaseStorageDownloadTokens': model_id  # Use model_id as the download token
+                    }
+                    blob.metadata = metadata
+                    
                     blob.upload_from_filename(str(file_path))
                     blob.make_public()
                     public_url = blob.public_url
@@ -184,25 +207,41 @@ def upload_results_to_firebase(container_name, output_paths, user_id, service_ac
                 public_url = f"file://{file_path}"
                 print_colored(f"Storage upload skipped. Using file path as reference: {public_url}", Colors.YELLOW)
 
-            # Always add the reference to Firestore
-            print_colored(f"Adding reference to Firestore plyFiles collection...", Colors.YELLOW)
+            # Add the file to the user's models collection (like the website does)
+            print_colored(f"Adding model to Firestore 'users/{user_id}/models' collection...", Colors.YELLOW)
+            model_doc_ref.set({
+                'fileName': file_name,
+                'originalName': file_name,
+                'downloadURL': public_url,
+                'storagePath': storage_path,
+                'contentType': content_type,
+                'size': file_size,
+                'uploadedAt': firestore.SERVER_TIMESTAMP,
+                'userId': user_id,
+                'type': 'model'
+            })
+            print_colored(f"Successfully added model to user's collection: {file_name}", Colors.GREEN)
+            
+            # Also add to legacy plyFiles collection for backward compatibility
+            print_colored(f"Adding reference to legacy plyFiles collection...", Colors.YELLOW)
             db.collection('plyFiles').document().set({
                 'fileName': file_name,
                 'originalName': file_name,
                 'downloadURL': public_url,
                 'storagePath': storage_path,
-                'contentType': '',
+                'contentType': content_type,
                 'size': file_size,
                 'uploadedAt': firestore.SERVER_TIMESTAMP,
                 'userId': user_id
             })
-            print_colored(f"Successfully added Firestore reference for {file_name}", Colors.GREEN)
+            print_colored(f"Successfully added to legacy plyFiles collection: {file_name}", Colors.GREEN)
             
             uploaded_files.append({
                 'fileName': file_name,
                 'url': public_url,
                 'path': storage_path,
-                'type': file_path.suffix[1:]  # 'ply' or 'obj'
+                'type': file_path.suffix[1:],  # 'ply' or 'obj'
+                'modelId': model_id
             })
 
             # If this is an OBJ file, also check for associated MTL and texture files
@@ -212,8 +251,9 @@ def upload_results_to_firebase(container_name, output_paths, user_id, service_ac
                 if mtl_file.exists():
                     if bucket is not None:
                         try:
-                            mtl_storage_path = f"users/{user_id}/models/{model_name}/{mtl_file.name}"
+                            mtl_storage_path = f"users/{user_id}/models/{model_id}/{mtl_file.name}"
                             mtl_blob = bucket.blob(mtl_storage_path)
+                            mtl_blob.content_type = 'text/plain'
                             mtl_blob.upload_from_filename(str(mtl_file))
                             mtl_blob.make_public()
                         except Exception as e:
@@ -225,8 +265,17 @@ def upload_results_to_firebase(container_name, output_paths, user_id, service_ac
                         for img_file in texture_dir.glob(f"*{img_ext}"):
                             if bucket is not None:
                                 try:
-                                    img_storage_path = f"users/{user_id}/models/{model_name}/{img_file.name}"
+                                    img_storage_path = f"users/{user_id}/models/{model_id}/{img_file.name}"
                                     img_blob = bucket.blob(img_storage_path)
+                                    
+                                    # Set appropriate image content type
+                                    img_content_type = 'image/jpeg'
+                                    if img_file.suffix.lower() == '.png':
+                                        img_content_type = 'image/png'
+                                    elif img_file.suffix.lower() == '.bmp':
+                                        img_content_type = 'image/bmp'
+                                        
+                                    img_blob.content_type = img_content_type
                                     img_blob.upload_from_filename(str(img_file))
                                     img_blob.make_public()
                                     
