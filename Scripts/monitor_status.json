@@ -1,0 +1,9 @@
+{
+  "timestamp": 1746320910.669078,
+  "active_processes": {},
+  "completed_user_ids": [],
+  "queue_size": 0,
+  "max_concurrent": 1,
+  "collection": "plyFiles",
+  "threshold_minutes": 5
+}
