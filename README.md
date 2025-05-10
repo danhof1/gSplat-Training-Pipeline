@@ -1,3 +1,5 @@
+#THIS PROJECT WON 2ND PLACE IN THE HOFSTRA SENIOR CAPSTONE COMPETITION
+
 # gSplat-Training-Pipeline
 ## Gaussian Splatting Processing Pipeline
 
