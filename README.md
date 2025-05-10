@@ -7,7 +7,7 @@
 
 ### 🏆 Recognition
 
-This project(and all related repositories) were awarded **Second Place** in the **Hofstra's Spring 2025 Computer Science & Engineering Senior Capstone Competition**. We're honored to have our work recognized for its innovation in applying Gaussian Splatting technology to create an innovative application for exploring 3D spaces.
+This project was awarded **Second Place** in the **Hofstra's Spring 2025 Computer Science & Engineering Senior Capstone Competition**. We're honored to have our work recognized for its innovation in applying Gaussian Splatting technology to create an innovative application for exploring 3D spaces.
 
 ### Overview
 
