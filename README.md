@@ -1,6 +1,17 @@
-# THIS PROJECT WON 2ND PLACE IN THE HOFSTRA SENIOR CAPSTONE COMPETITION
-
 # gSplat-Training-Pipeline
+## Gaussian Splatting Processing Pipeline
+
+<p align="center">
+  <img src="https://img.shields.io/badge/AWARD-Winner%20of%20Spring%202025%20CSE%20Senior%20Capstone%20Competition-gold" alt="Award Badge">
+</p>
+
+### 🏆 Recognition
+
+This project was awarded **Second Place** in the **Spring 2025 Computer Science & Engineering Senior Capstone Competition**. We're honored to have our work recognized for its innovation in applying Gaussian Splatting technology to create an efficient 3D reconstruction pipeline.
+
+### Overview
+
+This project provides an automated pipeline for processing 3D model data using Gaussian Splatting technology with SuGaR (Surface-Aligned Gaussian Splatting for Efficient 3D Mesh Reconstruction and High-Quality Mesh Extraction). The pipeline handles downloading data from Firebase, converting it to the appropriate format, processing it using a Docker container with the Gaussian Splatting algorithm, and uploading the results back to Firebase.
 ## Gaussian Splatting Processing Pipeline
 
 ### Overview
