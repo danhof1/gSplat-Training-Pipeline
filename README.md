@@ -2,7 +2,7 @@
 ## Gaussian Splatting Processing Pipeline
 
 <p align="center">
-  <img src="https://img.shields.io/badge/AWARD-Second%20Place%20Winner%20of%20Hofstra'sf%20Spring%202025%20CSE%20Senior%20Capstone%20Competition-silver" alt="Award Badge">
+  <img src="https://img.shields.io/badge/AWARD-Second%20Place%20Winner%20of%20Hofstra's%20Spring%202025%20CSE%20Senior%20Capstone%20Competition-silver" alt="Award Badge">
 </p>
 
 ### 🏆 Recognition
